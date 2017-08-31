@@ -1,0 +1,85 @@
+#! /usr/bin/env python3
+
+import sys
+import datetime
+import xml.etree.ElementTree as ET
+
+tree = ET.parse(sys.stdin)
+root = tree.getroot()
+
+# TYPE,CONTENT,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE
+
+def newcol(t: str = ""):
+    out.write(t or "")
+    out.write(",")
+
+def newrow(t: str):
+    out.write("\n")
+    newcol(t)
+
+# duedate="2017-08-21 18:00:00"
+def date(t: str):
+    if t is None:
+        return ""
+    date = datetime.datetime.strptime(t, "%Y-%m-%d %H:%M:%S")
+    return date.strftime("%d %b");
+
+def quote(t: str):
+    return '"%s"' % t.replace("\"", "")
+
+tasks = {}
+for task in root.findall('task'):
+    if "completiondate" in task.attrib.keys():
+        continue
+
+    task_id = task.attrib["id"]
+    tasks[task_id] = task
+
+#<category categorizables="0b470b05-43ac-11e7-afb3-28cfe918bded 18ca0b85-5ca5-11e7-8352-784f434ff873" subject="Mine" />
+def dump_category(category):
+    globals()["i"]+=1
+    categoryName = category.attrib["subject"]
+    filename = "%.2u_%s.csv" % (i, categoryName)
+    print("Writing %s" % filename)
+    globals()["out"] = open(filename, "w")
+    if category.attrib.get('categorizables') is not None:
+        task_ids = category.attrib.get('categorizables').split(" ")
+    else:
+        task_ids = []
+
+    newcol("TYPE")
+    newcol("CONTENT")
+    newcol("PRIORITY")
+    newcol("INDENT")
+    newcol("DATE")
+    newcol("DATE_LANG")
+
+    for task_id in task_ids:
+        task = tasks.get(task_id)
+
+        if task is None:
+            continue
+
+        newrow("task")
+        newcol(quote(task.attrib.get('subject')))
+        newcol("4")
+        newcol("1")
+        newcol(date(task.attrib.get('duedate')))
+        newcol("en")
+
+        desc = task.find('description')
+        if desc is not None:
+            newrow("note")
+            newcol(quote(desc.text.strip()))
+            newcol()
+            newcol()
+            newcol()
+            newcol()
+
+def iterate_categories(node):
+    for category in node.findall('category'):
+        dump_category(category)
+        iterate_categories(category)
+
+i=0
+iterate_categories(root)
